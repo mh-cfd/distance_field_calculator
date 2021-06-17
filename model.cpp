@@ -44,7 +44,7 @@ tri::tri(v3 p1, v3 p2, v3 p3)
     //cross product [p1p2 x p1p3]
     normal.m_x = (p2.m_y-p1.m_y)*(p3.m_z-p1.m_z) - (p2.m_z-p1.m_z)*(p3.m_y-p1.m_y);
     normal.m_y = (p2.m_z-p1.m_z)*(p3.m_x-p1.m_x) - (p2.m_x-p1.m_x)*(p3.m_z-p1.m_z);
-    normal.m_z = (p2.m_x-p1.m_x)*(p3.m_y-p1.m_y) - (p2.m_x-p1.m_x)*(p3.m_z-p1.m_z);
+    normal.m_z = (p2.m_x-p1.m_x)*(p3.m_y-p1.m_y) - (p2.m_y-p1.m_y)*(p3.m_x-p1.m_x);
 
     double l = sqrt(normal.m_x*normal.m_x + normal.m_y*normal.m_y + normal.m_z*normal.m_z);
     normal.m_x /= l;
