@@ -27,6 +27,7 @@ class tri
 
     v3 m_p[3];
 
+    v3 normal;
 };
 
 class model
