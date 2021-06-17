@@ -26,13 +26,12 @@ class tri
     tri(v3 p1, v3 p2, v3 p3);
     void draw();
 
-
     v3 m_p[3];
 
     v3 normal; //normal vector
     v3 center; //point of triangle centroid
 
-    v3 rot_matrix; //rotation matrix
+    double **matrix; //transformation matrix (translation + rotation)
 };
 
 class model

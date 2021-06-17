@@ -13,6 +13,48 @@
 #endif
 
 using namespace std;
+
+void multiplyMatrVect(double **A, v3 *b, int N) {
+    v3 temp[3];
+
+    for(int i=0;i<3;i++) {
+        temp[i].m_x = A[0][0]*b[i].m_x + A[0][1]*b[i].m_y + A[0][2]*b[i].m_z;
+        temp[i].m_y = A[1][0]*b[i].m_x + A[1][1]*b[i].m_y + A[1][2]*b[i].m_z;
+        temp[i].m_z = A[2][0]*b[i].m_x + A[2][1]*b[i].m_y + A[2][2]*b[i].m_z;
+    }
+
+    if(N==4) {
+        for(int i=0;i<3;i++) {
+            temp[i].m_x += A[0][3];
+            temp[i].m_y += A[1][3];
+            temp[i].m_z += A[2][3];
+        }
+    }
+
+    for(int i=0;i<3;i++) {
+        b[i] = temp[i];
+    }
+}
+
+void multiplyMatrixes(double **A, double **B, int N) {
+    double temp[N][N];
+
+    for(int i=0;i<N;i++) {
+        for(int j=0;j<N;j++) {
+            temp[i][j] = 0;
+            for(int m=0;m<N;m++) {
+                    temp[i][j] += A[i][m]*B[m][j];
+            }
+        }
+    }
+
+    for(int i=0;i<N;i++) {
+        for(int j=0;j<N;j++) {
+            B[i][j] = temp[i][j];
+        }
+    }
+}
+
 v3::v3(char* facet)
 {
 
@@ -44,6 +86,16 @@ v3 operator+(v3 left, v3 right){
     return res;
 }
 
+v3 operator-(v3 left, v3 right){
+    v3 res;
+
+    res.m_x = left.m_x - right.m_x;
+    res.m_y = left.m_y - right.m_y;
+    res.m_z = left.m_z - right.m_z;
+
+    return res;
+}
+
 v3 operator/(v3 left, double right){
     v3 res;
 
@@ -71,6 +123,129 @@ tri::tri(v3 p1, v3 p2, v3 p3)
     //normal.m_z /= l;
 
     center = (p1+p2+p3)/3;
+
+    v3 *shP = new v3[3]; //shifted points
+
+    matrix = new double*[4];
+    for(int i=0;i<4;i++) {
+        matrix[i] = new double[4];
+    }
+
+    for(int i=0;i<4;i++) {
+        for(int j=0;j<4;j++) {
+            if(i!=j) matrix[i][j] = 0.;
+            else matrix[i][j] = 1.;
+        }
+    }
+
+    //translation for p1 is in the origin
+    matrix[0][3] = -p1.m_x;
+    matrix[1][3] = -p1.m_y;
+    matrix[2][3] = -p1.m_z;
+
+    for(int i=0;i<3;i++) shP[i] = m_p[i]-p1;
+
+    //cout << "shP1=" << shP[0].m_x << "   " << shP[0].m_y << "   " << shP[0].m_z << endl;
+    //cout << "shP2=" << shP[1].m_x << "   " << shP[1].m_y << "   " << shP[1].m_z << endl;
+
+    double **rot_matrix;   //rotation matrix
+
+    rot_matrix = new double*[4];
+    for(int i=0;i<4;i++) {
+        rot_matrix[i] = new double[4];
+    }
+
+    for(int i=0;i<4;i++) {
+        for(int j=0;j<4;j++) {
+            if(i!=j) rot_matrix[i][j] = 0.;
+            else rot_matrix[i][j] = 1.;
+        }
+    }
+
+    //angle between vector p1p2 and plane y=0
+    double alpha = acos(shP[1].m_y/sqrt(shP[1].m_x*shP[1].m_x + shP[1].m_y*shP[1].m_y));
+    if(shP[1].m_x > 0) alpha = -alpha;
+    //cout << "alpha=" << alpha*180/M_PI << endl;
+    //rotation for p1p2 is on the xz-plane
+    rot_matrix[0][0] = cos(-alpha + M_PI/2.);
+    rot_matrix[0][1] = -sin(-alpha + M_PI/2.);
+    rot_matrix[1][0] = sin(-alpha + M_PI/2.);
+    rot_matrix[1][1] = cos(-alpha + M_PI/2.);
+
+    multiplyMatrVect(rot_matrix, shP, 3);  //should be p2.y=0
+
+    //cout << "shP2.y=" << shP[1].m_y << endl;
+
+    multiplyMatrixes(rot_matrix, matrix, 4);
+
+    for(int i=0;i<4;i++) {
+        for(int j=0;j<4;j++) {
+            if(i!=j) rot_matrix[i][j] = 0.;
+            else rot_matrix[i][j] = 1.;
+        }
+    }
+
+    //angle between vector p1p2 and plane x=0
+    double beta = acos(shP[1].m_x/sqrt(shP[1].m_x*shP[1].m_x + shP[1].m_z*shP[1].m_z));
+    if(shP[1].m_z < 0) beta = -beta;
+    //cout << "beta=" << beta*180/M_PI << endl;
+    //rotation for p1p2 and z-axis are co-directed
+    rot_matrix[0][0] = cos(beta - M_PI/2.);
+    rot_matrix[0][2] = sin(beta - M_PI/2.);
+    rot_matrix[2][0] = -sin(beta - M_PI/2.);
+    rot_matrix[2][2] = cos(beta - M_PI/2.);
+
+    //cout << "shP2=" << shP[1].m_x << "   " << shP[1].m_y << "   " << shP[1].m_z << endl;
+
+    multiplyMatrVect(rot_matrix, shP, 3);  //should be p2.x=0
+
+    //cout << "shP2.x=" << shP[1].m_x << endl;
+    //cout << "shP2.y=" << shP[1].m_y << endl;
+
+    multiplyMatrixes(rot_matrix, matrix, 4);
+
+    for(int i=0;i<4;i++) {
+        for(int j=0;j<4;j++) {
+            if(i!=j) rot_matrix[i][j] = 0.;
+            else rot_matrix[i][j] = 1.;
+        }
+    }
+
+    //cout << "shP1=" << shP[0].m_x << "   " << shP[0].m_y << "   " << shP[0].m_z << endl;
+    //cout << "shP2=" << shP[1].m_x << "   " << shP[1].m_y << "   " << shP[1].m_z << endl;
+    //cout << "shP3=" << shP[2].m_x << "   " << shP[2].m_y << "   " << shP[2].m_z << endl;
+
+    //angle between vector p1p3 and plane x=0
+    double gamma = acos(shP[2].m_x/sqrt(shP[2].m_x*shP[2].m_x + shP[2].m_y*shP[2].m_y));
+    if(shP[2].m_y < 0) gamma = -gamma;
+    //rotation for p3p1 is on the yz-plane
+    rot_matrix[0][0] = cos(-gamma + M_PI/2.);
+    rot_matrix[0][1] = -sin(-gamma + M_PI/2.);
+    rot_matrix[1][0] = sin(-gamma + M_PI/2.);
+    rot_matrix[1][1] = cos(-gamma + M_PI/2.);
+
+    multiplyMatrVect(rot_matrix, shP, 3); //should be p3.x=0
+
+    multiplyMatrixes(rot_matrix, matrix, 4);
+
+    //cout << "shP3.x=" << shP[2].m_x << endl;
+
+    //cout << "shP1=" << shP[0].m_x << "   " << shP[0].m_y << "   " << shP[0].m_z << endl;
+    //cout << "shP2=" << shP[1].m_x << "   " << shP[1].m_y << "   " << shP[1].m_z << endl;
+    //cout << "shP3=" << shP[2].m_x << "   " << shP[2].m_y << "   " << shP[2].m_z << endl;
+
+    //for(int i=0;i<3;i++) shP[i] = m_p[i];
+
+    //multiplyMatrVect(matrix, shP, 4); //exam
+
+    //cout << "shP1=" << shP[0].m_x << "   " << shP[0].m_y << "   " << shP[0].m_z << endl;
+    //cout << "shP2=" << shP[1].m_x << "   " << shP[1].m_y << "   " << shP[1].m_z << endl;
+    //cout << "shP3=" << shP[2].m_x << "   " << shP[2].m_y << "   " << shP[2].m_z << endl;
+
+    //cout << endl;
+
+    for(int i=0;i<4;i++) delete[] rot_matrix[i];
+    delete[] rot_matrix;
 }
 
 void tri::draw()
