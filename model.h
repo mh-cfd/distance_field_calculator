@@ -11,10 +11,12 @@ class v3
     v3(char* bin);
     v3(double x, double y, double z);
 
-
     double m_x, m_y, m_z;
 
 };
+
+v3 operator+(v3 left, v3 right);
+v3 operator/(v3 left, double right);
 
 class tri
 {
@@ -27,7 +29,10 @@ class tri
 
     v3 m_p[3];
 
-    v3 normal;
+    v3 normal; //normal vector
+    v3 center; //point of triangle centroid
+
+    v3 rot_matrix; //rotation matrix
 };
 
 class model

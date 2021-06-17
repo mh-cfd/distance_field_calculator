@@ -32,7 +32,26 @@ v3::v3(char* facet)
     m_x = double(xx);
     m_y = double(yy);
     m_z = double(zz);
+}
 
+v3 operator+(v3 left, v3 right){
+    v3 res;
+
+    res.m_x = left.m_x + right.m_x;
+    res.m_y = left.m_y + right.m_y;
+    res.m_z = left.m_z + right.m_z;
+
+    return res;
+}
+
+v3 operator/(v3 left, double right){
+    v3 res;
+
+    res.m_x = left.m_x / right;
+    res.m_y = left.m_y / right;
+    res.m_z = left.m_z / right;
+
+    return res;
 }
 
 tri::tri(v3 p1, v3 p2, v3 p3)
@@ -47,9 +66,11 @@ tri::tri(v3 p1, v3 p2, v3 p3)
     normal.m_z = (p2.m_x-p1.m_x)*(p3.m_y-p1.m_y) - (p2.m_y-p1.m_y)*(p3.m_x-p1.m_x);
 
     double l = sqrt(normal.m_x*normal.m_x + normal.m_y*normal.m_y + normal.m_z*normal.m_z);
-    normal.m_x /= l;
-    normal.m_y /= l;
-    normal.m_z /= l;
+    //normal.m_x /= l;
+    //normal.m_y /= l;
+    //normal.m_z /= l;
+
+    center = (p1+p2+p3)/3;
 }
 
 void tri::draw()
@@ -60,6 +81,10 @@ void tri::draw()
     glVertex3f(m_p[i].m_x,m_p[i].m_y,m_p[i].m_z);
  glEnd();
 
+ glBegin(GL_LINES);
+ glVertex3f(center.m_x, center.m_y, center.m_z);
+ glVertex3f(center.m_x+normal.m_x, center.m_y+normal.m_y, center.m_z+normal.m_z);
+ glEnd();
 }
 
 void model::load(char *fname)
