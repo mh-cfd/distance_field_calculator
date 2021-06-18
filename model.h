@@ -10,13 +10,16 @@ class v3
     v3(){};
     v3(char* bin);
     v3(double x, double y, double z);
-
+    double len();
     double m_x, m_y, m_z;
+
 
 };
 
 v3 operator+(v3 left, v3 right);
+v3 operator-(v3 left, v3 right);
 v3 operator/(v3 left, double right);
+v3 operator*(v3 left, double right);
 
 class tri
 {
@@ -27,6 +30,7 @@ class tri
     void draw();
 
     double distP(v3 point);
+    double distP_naive(v3 point);
 
     v3 m_p[3];
 
@@ -44,6 +48,8 @@ class model
 
     std::vector<tri> m_tris;
     void draw();
+    double distP(v3 point);
+    double distP_naive(v3 point);
     void getMinMax();
     double m_xMin,m_xMax,m_yMin,m_yMax,m_zMin,m_zMax;
     model(){};

@@ -78,6 +78,11 @@ v3::v3(char* facet)
     m_z = double(zz);
 }
 
+double v3::len()
+{
+    return sqrt(m_x*m_x+m_y*m_y+ m_z*m_z);
+}
+
 v3 operator+(v3 left, v3 right){
     v3 res;
 
@@ -107,6 +112,18 @@ v3 operator/(v3 left, double right){
 
     return res;
 }
+
+
+v3 operator*(v3 left, double right){
+    v3 res;
+
+    res.m_x = left.m_x * right;
+    res.m_y = left.m_y * right;
+    res.m_z = left.m_z * right;
+
+    return res;
+}
+
 
 tri::tri(v3 p1, v3 p2, v3 p3)
 {
@@ -256,10 +273,17 @@ double tri::distP(v3 point) {
     return fabs(multiplyMatrPoint(this->matrix, point).m_x);
 }
 
+double tri::distP_naive(v3 point)
+{
+    v3 delta=(m_p[0]+m_p[1]+m_p[2])*(1.0/3.0) - point;
+    return delta.len();
+}
+
 void tri::draw()
 {
      glColor3f(1.0,1.0,1.0);
      glBegin(GL_TRIANGLES);
+            glNormal3f(normal.m_x,normal.m_y,normal.m_z);
         for (int i=0;i<3;i++)
             glVertex3f(m_p[i].m_x,m_p[i].m_y,m_p[i].m_z);
      glEnd();
@@ -337,6 +361,30 @@ void model::draw()
     {
         m_tris[i].draw();
     }
+
+    glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+}
+
+double model::distP(v3 point)
+{
+    double min_dist =1e10;
+    for (int i=0; i<m_tris.size();i++)
+    {
+        double l=m_tris[i].distP(point);
+        if (fabs(min_dist)>fabs(l)) min_dist=l;
+    }
+    return min_dist;
+}
+
+double model::distP_naive(v3 point)
+{
+    double min_dist =1e10;
+    for (int i=0; i<m_tris.size();i++)
+    {
+        double l=m_tris[i].distP_naive(point);
+        if (min_dist>l) min_dist=l;
+    }
+    return min_dist;
 }
 
 void model::getMinMax()
