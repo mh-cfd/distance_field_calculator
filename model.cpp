@@ -14,26 +14,28 @@
 
 using namespace std;
 
-void multiplyMatrVect(double **A, v3 *b, int N) {
+void multiplyMatrVect(double **A, v3 *b) {
     v3 temp[3];
 
     for(int i=0;i<3;i++) {
-        temp[i].m_x = A[0][0]*b[i].m_x + A[0][1]*b[i].m_y + A[0][2]*b[i].m_z;
-        temp[i].m_y = A[1][0]*b[i].m_x + A[1][1]*b[i].m_y + A[1][2]*b[i].m_z;
-        temp[i].m_z = A[2][0]*b[i].m_x + A[2][1]*b[i].m_y + A[2][2]*b[i].m_z;
-    }
-
-    if(N==4) {
-        for(int i=0;i<3;i++) {
-            temp[i].m_x += A[0][3];
-            temp[i].m_y += A[1][3];
-            temp[i].m_z += A[2][3];
-        }
+        temp[i].m_x = A[0][0]*b[i].m_x + A[0][1]*b[i].m_y + A[0][2]*b[i].m_z + A[0][3];
+        temp[i].m_y = A[1][0]*b[i].m_x + A[1][1]*b[i].m_y + A[1][2]*b[i].m_z + A[1][3];
+        temp[i].m_z = A[2][0]*b[i].m_x + A[2][1]*b[i].m_y + A[2][2]*b[i].m_z + A[2][3];
     }
 
     for(int i=0;i<3;i++) {
         b[i] = temp[i];
     }
+}
+
+v3 multiplyMatrPoint(double **A, v3 b) {
+    v3 res;
+
+    res.m_x = A[0][0]*b.m_x + A[0][1]*b.m_y + A[0][2]*b.m_z + A[0][3];
+    res.m_y = A[1][0]*b.m_x + A[1][1]*b.m_y + A[1][2]*b.m_z + A[1][3];
+    res.m_z = A[2][0]*b.m_x + A[2][1]*b.m_y + A[2][2]*b.m_z + A[2][3];
+
+    return res;
 }
 
 void multiplyMatrixes(double **A, double **B, int N) {
@@ -118,9 +120,9 @@ tri::tri(v3 p1, v3 p2, v3 p3)
     normal.m_z = (p2.m_x-p1.m_x)*(p3.m_y-p1.m_y) - (p2.m_y-p1.m_y)*(p3.m_x-p1.m_x);
 
     double l = sqrt(normal.m_x*normal.m_x + normal.m_y*normal.m_y + normal.m_z*normal.m_z);
-    //normal.m_x /= l;
-    //normal.m_y /= l;
-    //normal.m_z /= l;
+    normal.m_x /= l;
+    normal.m_y /= l;
+    normal.m_z /= l;
 
     center = (p1+p2+p3)/3;
 
@@ -172,7 +174,7 @@ tri::tri(v3 p1, v3 p2, v3 p3)
     rot_matrix[1][0] = sin(-alpha + M_PI/2.);
     rot_matrix[1][1] = cos(-alpha + M_PI/2.);
 
-    multiplyMatrVect(rot_matrix, shP, 3);  //should be p2.y=0
+    multiplyMatrVect(rot_matrix, shP);  //should be p2.y=0
 
     //cout << "shP2.y=" << shP[1].m_y << endl;
 
@@ -197,7 +199,7 @@ tri::tri(v3 p1, v3 p2, v3 p3)
 
     //cout << "shP2=" << shP[1].m_x << "   " << shP[1].m_y << "   " << shP[1].m_z << endl;
 
-    multiplyMatrVect(rot_matrix, shP, 3);  //should be p2.x=0
+    multiplyMatrVect(rot_matrix, shP);  //should be p2.x=0
 
     //cout << "shP2.x=" << shP[1].m_x << endl;
     //cout << "shP2.y=" << shP[1].m_y << endl;
@@ -224,7 +226,7 @@ tri::tri(v3 p1, v3 p2, v3 p3)
     rot_matrix[1][0] = sin(-gamma + M_PI/2.);
     rot_matrix[1][1] = cos(-gamma + M_PI/2.);
 
-    multiplyMatrVect(rot_matrix, shP, 3); //should be p3.x=0
+    multiplyMatrVect(rot_matrix, shP); //should be p3.x=0
 
     multiplyMatrixes(rot_matrix, matrix, 4);
 
@@ -236,7 +238,7 @@ tri::tri(v3 p1, v3 p2, v3 p3)
 
     //for(int i=0;i<3;i++) shP[i] = m_p[i];
 
-    //multiplyMatrVect(matrix, shP, 4); //exam
+    //multiplyMatrVect(matrix, shP); //exam
 
     //cout << "shP1=" << shP[0].m_x << "   " << shP[0].m_y << "   " << shP[0].m_z << endl;
     //cout << "shP2=" << shP[1].m_x << "   " << shP[1].m_y << "   " << shP[1].m_z << endl;
@@ -244,22 +246,28 @@ tri::tri(v3 p1, v3 p2, v3 p3)
 
     //cout << endl;
 
+    delete[] shP;
+
     for(int i=0;i<4;i++) delete[] rot_matrix[i];
     delete[] rot_matrix;
 }
 
+double tri::distP(v3 point) {
+    return fabs(multiplyMatrPoint(this->matrix, point).m_x);
+}
+
 void tri::draw()
 {
- glColor3f(1.0,1.0,1.0);
- glBegin(GL_TRIANGLES);
- for (int i=0;i<3;i++)
-    glVertex3f(m_p[i].m_x,m_p[i].m_y,m_p[i].m_z);
- glEnd();
+     glColor3f(1.0,1.0,1.0);
+     glBegin(GL_TRIANGLES);
+        for (int i=0;i<3;i++)
+            glVertex3f(m_p[i].m_x,m_p[i].m_y,m_p[i].m_z);
+     glEnd();
 
- glBegin(GL_LINES);
- glVertex3f(center.m_x, center.m_y, center.m_z);
- glVertex3f(center.m_x+normal.m_x, center.m_y+normal.m_y, center.m_z+normal.m_z);
- glEnd();
+     glBegin(GL_LINES);
+        glVertex3f(center.m_x, center.m_y, center.m_z);
+        glVertex3f(center.m_x+normal.m_x, center.m_y+normal.m_y, center.m_z+normal.m_z);
+     glEnd();
 }
 
 void model::load(char *fname)
@@ -329,7 +337,6 @@ void model::draw()
     {
         m_tris[i].draw();
     }
-
 }
 
 void model::getMinMax()
