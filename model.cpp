@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <model.h>
 #include <iostream>     // std::cout
 #include <fstream>      // std::ifstream
@@ -83,6 +84,10 @@ double v3::len()
     return sqrt(m_x*m_x+m_y*m_y+ m_z*m_z);
 }
 
+double dotProd(v3 vec1, v3 vec2) {
+    return vec1.m_x*vec2.m_x + vec1.m_y*vec2.m_y + vec1.m_z*vec2.m_z;
+}
+
 v3 operator+(v3 left, v3 right){
     v3 res;
 
@@ -143,7 +148,7 @@ tri::tri(v3 p1, v3 p2, v3 p3)
 
     center = (p1+p2+p3)/3;
 
-    v3 *shP = new v3[3]; //shifted points
+    shP = new v3[3]; //shifted points
 
     matrix = new double*[4];
     for(int i=0;i<4;i++) {
@@ -263,14 +268,94 @@ tri::tri(v3 p1, v3 p2, v3 p3)
 
     //cout << endl;
 
-    delete[] shP;
+    //delete[] shP;
 
     for(int i=0;i<4;i++) delete[] rot_matrix[i];
     delete[] rot_matrix;
 }
 
 double tri::distP(v3 point) {
-    return fabs(multiplyMatrPoint(this->matrix, point).m_x);
+    double dist = -1;
+    v3 p = multiplyMatrPoint(this->matrix, point);
+
+    double E12, E23, E31; //edges equation results: E<0 -> point on left side, E>0 -> point on right side
+    //E(y,z) = (y-Y)*dZ - (z-Z)*dY
+
+    E12 = p.m_y*shP[1].m_z;
+    E23 = p.m_y*(shP[2].m_z-shP[1].m_z) - (p.m_z-shP[1].m_z)*shP[2].m_y;
+    E31 = p.m_y*(-shP[2].m_z) - p.m_z*(-shP[2].m_y);
+
+    //cout << "shP1=" << shP[0].m_x << "   " << shP[0].m_y << "   " << shP[0].m_z << endl;
+    //cout << "shP2=" << shP[1].m_x << "   " << shP[1].m_y << "   " << shP[1].m_z << endl;
+    //cout << "shP3=" << shP[2].m_x << "   " << shP[2].m_y << "   " << shP[2].m_z << endl;
+    //cout << "p=" << p.m_x << "   " << p.m_y << "   " << p.m_z << endl;
+    //cout << "Edges " << E12 << "   " << E23 << "   " << E31 << endl;
+
+    if(fabs(E12) < 1.e-15 || fabs(E23) < 1.e-15 || fabs(E31) < 1.e-15) {    //on the edge
+        dist = fabs(p.m_x);
+        return dist;
+    }
+
+    if(E12>0 && E23>0 && E31>0) {   //inside
+        dist = fabs(p.m_x);
+        return dist;
+    }
+
+    double mult = 0;
+    if(E12 < 0) { //left side of p1p2
+        mult = dotProd(shP[1], p);
+        if(mult < 0) {  //p1 is closest
+            return p.len();
+        }
+        else {
+            mult /= fabs(shP[1].m_z);
+            if(mult <= fabs(shP[1].m_z)) {     //p1p2 is closest
+                return sqrt(p.m_x*p.m_x + p.m_y*p.m_y);
+            }
+            else {  //p2 is closest
+                return (p-shP[1]).len();
+            }
+        }
+    }
+
+    if(E31 < 0) {  //right side p1p2, left side p3p1
+        mult = dotProd(shP[2], p);
+        if(mult < 0) {  //p1 is closest
+            return p.len();
+        }
+        else {
+            mult /= fabs(shP[2].len());
+            if(mult <= fabs(shP[2].len())) {     //p1p3 is closest
+                double c2 = p.m_y*p.m_y + p.m_z*p.m_z - mult*mult;
+                return sqrt(p.m_x*p.m_x + c2);
+            }
+            else {  //p3 is closest
+                return (p-shP[2]).len();
+            }
+        }
+    }
+
+    if(E23 < 0) {  //left side p2p3, right side of other
+        mult = dotProd(shP[2]-shP[1], p-shP[1]);
+        if(mult < 0) {  //p2 is closest
+            return (p-shP[1]).len();
+        }
+        else {
+            mult /= (shP[2]-shP[1]).len();
+            if(mult <= (shP[2]-shP[1]).len()) {     //p2p3 is closest
+                double c2 = pow((p-shP[1]).m_y, 2.) + pow((p-shP[1]).m_z, 2) - mult*mult;
+                return sqrt(p.m_x*p.m_x + c2);
+            }
+            else {  //p3 is closest
+                return (p-shP[2]).len();
+            }
+        }
+    }
+
+    assert(dist < 0);
+
+    return dist;
+    //return (point - this->center).len();
 }
 
 double tri::distP_naive(v3 point)

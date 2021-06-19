@@ -11,10 +11,13 @@ class v3
     v3(char* bin);
     v3(double x, double y, double z);
     double len();
+
     double m_x, m_y, m_z;
 
 
 };
+
+double dotProd(v3 vec1, v3 vec2);
 
 v3 operator+(v3 left, v3 right);
 v3 operator-(v3 left, v3 right);
@@ -33,6 +36,8 @@ class tri
     double distP_naive(v3 point);
 
     v3 m_p[3];
+
+    v3 *shP;
 
     v3 normal; //normal vector
     v3 center; //point of triangle centroid
