@@ -34,6 +34,8 @@ class tri
 
     double distP(v3 point);
     double distP_naive(v3 point);
+    double getSign(v3 point); //get side with respect to the normal
+
 
     v3 m_p[3];
 
@@ -45,6 +47,15 @@ class tri
     double **matrix; //transformation matrix (translation + rotation)
 };
 
+struct i3
+{
+public:
+    int m_i[3];
+};
+
+#define NI_max 30
+#define NJ_max 30
+#define NK_max 30
 class model
 {
     public:
@@ -55,10 +66,19 @@ class model
     void draw();
     double distP(v3 point);
     double distP_naive(v3 point);
+     double distP_fast(v3 point);
+
     void getMinMax();
     double m_xMin,m_xMax,m_yMin,m_yMax,m_zMin,m_zMax;
-    model(){};
 
+    static std::vector<int> m_grid[NI_max][NJ_max][NK_max]; //triangles in cells
+    static i3 m_nearest_cell[NI_max][NJ_max][NK_max];// nearest non-empty cell to the current cell
+
+    int m_ni,m_nj,m_nk;
+    double w_x0,w_y0,w_z0,w_x1,w_y1,w_z1;
+    void distributeTriangles();
+    model(){};
+    i3 getNearest(int i, int j, int k);
 
 };
 

@@ -8,12 +8,19 @@
 #include  <GL/glu.h>
 #include  <GL/glut.h>
 #elif _WIN32
+#include <windows.h>
+#define GLUT_DISABLE_ATEXIT_HACK
 #include <my_include/gl.h>
 #include <my_include/glu.h>
 #include <my_include/glut.h>
+
 #endif
 
 using namespace std;
+
+
+std::vector<int> model::m_grid[NI_max][NJ_max][NK_max]; //triangles in cells
+i3 model::m_nearest_cell[NI_max][NJ_max][NK_max];// nearest non-empty cell to the current cell
 
 void multiplyMatrVect(double **A, v3 *b) {
     v3 temp[3];
@@ -46,7 +53,7 @@ void multiplyMatrixes(double **A, double **B, int N) {
         for(int j=0;j<N;j++) {
             temp[i][j] = 0;
             for(int m=0;m<N;m++) {
-                    temp[i][j] += A[i][m]*B[m][j];
+                temp[i][j] += A[i][m]*B[m][j];
             }
         }
     }
@@ -62,13 +69,13 @@ v3::v3(char* facet)
 {
 
     char f1[4] = {facet[0],
-        facet[1],facet[2],facet[3]};
+                  facet[1],facet[2],facet[3]};
 
     char f2[4] = {facet[4],
-        facet[5],facet[6],facet[7]};
+                  facet[5],facet[6],facet[7]};
 
     char f3[4] = {facet[8],
-        facet[9],facet[10],facet[11]};
+                  facet[9],facet[10],facet[11]};
 
     float xx = *((float*) f1 );
     float yy = *((float*) f2 );
@@ -364,19 +371,24 @@ double tri::distP_naive(v3 point)
     return delta.len();
 }
 
+double tri::getSign(v3 point)
+{
+    return 2.0*(dotProd(point - m_p[0],normal)>0)-1.0;
+}
+
 void tri::draw()
 {
-     glColor3f(1.0,1.0,1.0);
-     glBegin(GL_TRIANGLES);
-            glNormal3f(normal.m_x,normal.m_y,normal.m_z);
-        for (int i=0;i<3;i++)
-            glVertex3f(m_p[i].m_x,m_p[i].m_y,m_p[i].m_z);
-     glEnd();
+    glColor3f(1.0,1.0,1.0);
+    glBegin(GL_TRIANGLES);
+    glNormal3f(normal.m_x,normal.m_y,normal.m_z);
+    for (int i=0;i<3;i++)
+        glVertex3f(m_p[i].m_x,m_p[i].m_y,m_p[i].m_z);
+    glEnd();
 
-     glBegin(GL_LINES);
-        glVertex3f(center.m_x, center.m_y, center.m_z);
-        glVertex3f(center.m_x+normal.m_x, center.m_y+normal.m_y, center.m_z+normal.m_z);
-     glEnd();
+    glBegin(GL_LINES);
+    glVertex3f(center.m_x, center.m_y, center.m_z);
+    glVertex3f(center.m_x+normal.m_x, center.m_y+normal.m_y, center.m_z+normal.m_z);
+    glEnd();
 }
 
 void model::load(char *fname)
@@ -385,57 +397,83 @@ void model::load(char *fname)
     m_tris.clear();
     ifstream myFile(fname, ios::in | ios::binary);
 
-        char header_info[80] = "";
-        char nTri[4];
-        unsigned long nTriLong;
+    char header_info[80] = "";
+    char nTri[4];
+    unsigned long nTriLong;
 
-        //read 80 byte header
+    //read 80 byte header
+    if (myFile) {
+        myFile.read (header_info, 80);
+        cout <<"header: " << header_info << endl;
+    }
+    else{
+        cout << "error" << endl;
+    }
+
+    //read 4-byte ulong
+    if (myFile) {
+        myFile.read (nTri, 4);
+        nTriLong = *((unsigned long*)nTri) ;
+        cout <<"n Tri: " << nTriLong << endl;
+    }
+    else{
+        cout << "error" << endl;
+    }
+
+    //now read in all the triangles
+    for(int i = 0; i < nTriLong; i++){
+
+        char facet[50];
+
         if (myFile) {
-            myFile.read (header_info, 80);
-            cout <<"header: " << header_info << endl;
-        }
-        else{
-            cout << "error" << endl;
-        }
-
-        //read 4-byte ulong
-        if (myFile) {
-            myFile.read (nTri, 4);
-            nTriLong = *((unsigned long*)nTri) ;
-            cout <<"n Tri: " << nTriLong << endl;
-        }
-        else{
-            cout << "error" << endl;
-        }
-
-        //now read in all the triangles
-        for(int i = 0; i < nTriLong; i++){
-
-            char facet[50];
-
-            if (myFile) {
 
             //read one 50-byte triangle
-                myFile.read (facet, 50);
+            myFile.read (facet, 50);
 
             //populate each point of the triangle
             //using v3::v3(char* bin);
-                //facet + 12 skips the triangle's unit normal
-                v3 p1(facet+12);
-                v3 p2(facet+24);
-                v3 p3(facet+36);
+            //facet + 12 skips the triangle's unit normal
+            v3 p1(facet+12);
+            v3 p2(facet+24);
+            v3 p3(facet+36);
 
-                //add a new triangle to the array
-                m_tris.push_back( tri(p1,p2,p3) );
+            //add a new triangle to the array
+            m_tris.push_back( tri(p1,p2,p3) );
 
-            }
         }
+    }
 
-        getMinMax();
+    getMinMax();
 
-        printf("model loaded name=%s tri_count=%d \n xmin=%f xmax=%f \n ymin=%f ymax=%f \n zmin=%f zmax=%f \n",fname,m_tris.size(),
-               m_xMin,m_xMax,m_yMin,m_yMax,m_zMin,m_zMax );
-        return;
+
+    printf("model loaded name=%s tri_count=%d \n xmin=%f xmax=%f \n ymin=%f ymax=%f \n zmin=%f zmax=%f \n",fname,m_tris.size(),
+           m_xMin,m_xMax,m_yMin,m_yMax,m_zMin,m_zMax );
+
+
+    double dx,dy,dz;
+    w_x0=m_xMin;
+    w_x1=m_xMax;
+    w_y0=m_yMin;
+    w_y1=m_yMax;
+    w_z0=m_zMin;
+    w_z1=m_zMax;
+
+    dx=w_x1-w_x0; dy=w_y1-w_y0; dz=w_z1-w_z0;
+
+    w_x0-=dx; w_x1+=dx;
+    w_y0-=dy; w_y1+=dy;
+    w_z0-=dz; w_z1+=dz;
+
+    m_ni=29;
+    m_nj=29;
+    m_nk=29;
+
+    printf("start distributing \n");
+
+    distributeTriangles();
+    printf("end distributing \n");
+
+    return;
 
 }
 
@@ -455,7 +493,7 @@ double model::distP(v3 point)
     double min_dist =1e10;
     for (int i=0; i<m_tris.size();i++)
     {
-        double l=m_tris[i].distP(point);
+        double l=m_tris[i].distP(point);//*m_tris[i].getSign(point);
         if (fabs(min_dist)>fabs(l)) min_dist=l;
     }
     return min_dist;
@@ -471,6 +509,67 @@ double model::distP_naive(v3 point)
     }
     return min_dist;
 }
+
+double model::distP_fast(v3 point)
+{
+    //printf("aa \n");
+    double dx=(w_x1-w_x0)/m_ni;
+    double dy=(w_y1-w_y0)/m_nj;
+    double dz=(w_z1-w_z0)/m_nk;
+
+    int ix0,iy0,iz0;
+    ix0=(int)((point.m_x - w_x0)/dx);
+    iy0=(int)((point.m_y - w_y0)/dy);
+    iz0=(int)((point.m_z - w_z0)/dz);
+
+    if (ix0<0) ix0=0;
+    if (iy0<0) iy0=0;
+    if (iz0<0) iz0=0;
+
+    if (ix0>=m_ni-1) ix0=m_ni-1;
+    if (iy0>=m_nj-1) iy0=m_nj-1;
+    if (iz0>=m_nk-1) iz0=m_nk-1;
+
+
+
+    if (m_grid[ix0][iy0][iz0].size()==0)
+    {
+        i3 nearest=getNearest(ix0,iy0,iz0);
+        ix0=nearest.m_i[0];
+        iy0=nearest.m_i[1];
+        iz0=nearest.m_i[2];
+    }
+    double min_dist =1e10;
+
+    // printf("bb %d %d %d %d \n",ix,iy,iz,m_grid[ix][iy][iz].size());
+    int im,ip,jm,jp,km,kp;
+    im=ix0-1; ip=ix0+1;
+    jm=iy0-1; jp=iy0+1;
+    km=iz0-1; kp=iz0+1;
+
+    if (im<0) im=0;
+    if (jm<0) jm=0;
+    if (km<0) km=0;
+
+    if (ip>=m_ni-1) ip=m_ni-1;
+    if (jp>=m_nj-1) jp=m_nj-1;
+    if (kp>=m_nk-1) kp=m_nk-1;
+
+    for (int ix=im;ix<=ip;ix++)
+        for (int iy=jm;iy<=jp;iy++)
+            for (int iz=km;iz<=kp;iz++)
+            {
+                for (int i=0; i<m_grid[ix][iy][iz].size();i++)
+                {
+                    int ind=m_grid[ix][iy][iz][i];
+                    double l=m_tris[ind].distP(point);//*m_tris[ind].getSign(point);
+                    if (fabs(min_dist)>fabs(l)) min_dist=l;
+                }
+            }
+    return min_dist;
+}
+
+
 
 void model::getMinMax()
 {
@@ -495,6 +594,109 @@ void model::getMinMax()
     }
 
 
+}
+
+i3 model::getNearest(int i0, int j0,int k0)
+{
+    double l2 = 1e20;
+    i3 i3m;
+    i3m.m_i[0]=i0;
+    i3m.m_i[1]=j0;
+    i3m.m_i[2]=k0;
+    double dx=(w_x1-w_x0)/m_ni;
+    double dy=(w_y1-w_y0)/m_nj;
+    double dz=(w_z1-w_z0)/m_nk;
+
+    for (int i=0;i<m_ni;i++)
+    {
+        for (int j=0;j<m_nj;j++)
+        {
+            for (int k=0;k<m_nk;k++)
+            {
+                if (m_grid[i][j][k].size()>0)
+                {
+                    double Dx=(i-i0)*dx;
+                    double Dy=(j-j0)*dy;
+                    double Dz=(k-k0)*dz;
+
+                    double li=(Dx*Dx + Dy*Dy + Dz*Dz);
+                    if (l2>li)
+                    {
+                        l2=li;
+                        i3m.m_i[0]=i;
+                        i3m.m_i[1]=j;
+                        i3m.m_i[2]=k;
+                    }
+                }
+            }
+        }
+    }
+    return i3m;
+}
+
+void model::distributeTriangles()
+{
+    for (int i=0;i<m_ni;i++)
+    {
+        for (int j=0;j<m_nj;j++)
+        {
+            for (int k=0;k<m_nk;k++)
+            {
+                m_grid[i][j][k].clear();
+            }
+        }
+    }
+    double dx=(w_x1-w_x0)/m_ni;
+    double dy=(w_y1-w_y0)/m_nj;
+    double dz=(w_z1-w_z0)/m_nk;
+
+    for (int i=0;i<m_tris.size();i++)
+    {
+        int ix[3],iy[3],iz[3];
+        for (int nn=0; nn<3; nn++)
+        {
+            ix[nn]=(int)((m_tris[i].m_p[nn].m_x - w_x0)/dx);
+            iy[nn]=(int)((m_tris[i].m_p[nn].m_y - w_y0)/dy);
+            iz[nn]=(int)((m_tris[i].m_p[nn].m_z - w_z0)/dz);
+            int s=m_grid[ix[nn]][iy[nn]][iz[nn]].size();
+            if ((s==0) || (m_grid[ix[nn]][iy[nn]][iz[nn]][s-1]!=i))
+            {
+                m_grid[ix[nn]][iy[nn]][iz[nn]].push_back(i);
+            }
+        }
+    }
+
+    /* //from centers
+       for (int i=0;i<m_tris.size();i++)
+      {
+          int ix,iy,iz;
+          v3 t0=(m_tris[i].m_p[0]+m_tris[i].m_p[1]+m_tris[i].m_p[2])*(1.0/3.0);
+              ix=(int)((t0.m_x - w_x0)/dx);
+              iy=(int)((t0.m_y - w_y0)/dy);
+              iz=(int)((t0.m_z - w_z0)/dz);
+
+                  m_grid[ix][iy][iz].push_back(i);
+
+
+      }*/
+
+    //now lets find nearest
+    for (int i=0;i<m_ni;i++)
+    {
+        for (int j=0;j<m_nj;j++)
+        {
+            for (int k=0;k<m_nk;k++)
+            {
+                if (m_grid[i][j][k].size()==0)
+                {
+                    m_nearest_cell[i][j][k]=getNearest(i,j,k);
+                }/*else
+                {
+                    printf("i=%d j=%d k=%d n=%d \n",i,j,k,m_grid[i][j][k].size());
+                }*/
+            }
+        }
+    }
 }
 
 

@@ -1,13 +1,17 @@
 #include "GUI.h"
 #include "model.h"
+#include <sys/time.h>
 #ifdef __linux__
 #include  <GL/gl.h>
 #include  <GL/glu.h>
 #include  <GL/glut.h>
 #elif _WIN32
+#define GLUT_DISABLE_ATEXIT_HACK
+#include <windows.h>
 #include <my_include/gl.h>
 #include <my_include/glu.h>
 #include <my_include/glut.h>
+
 #endif
 
 
@@ -39,11 +43,22 @@ double mouse_x=0.0;
 double mouse_y=0.0;
 
 int rotate=0;
-
+int draw_model=1;
 extern model* model_1;
-
+ double scale =1.0;
 
 int draw_dist=0;
+
+double dist_cache[200][200];
+double dist_fast_cache[200][200];
+int N_cross=150;
+
+double get_time(void) {
+    struct timeval tv;
+    struct timezone tz;
+    gettimeofday(&tv, &tz);
+    return ((double)(tv.tv_sec+tv.tv_usec*1.0e-6));
+}
 
 v3 get_color(double gval, double min, double max)
 {
@@ -85,6 +100,39 @@ v3 get_color(double gval, double min, double max)
 }
 //draw call
 
+void calc_distnce(double alpha,int N)
+{
+    for (int j=0;j<N+1;j++)
+    {
+        for (int i=0;i<N;i++)
+        {
+            v3 r;
+            r.m_x=w_x0+i*(w_x1-w_x0)/N;
+            r.m_y=w_y0+j*(w_y1-w_y0)/N;
+            r.m_z=w_z0*(1.0-alpha)+w_z1*alpha;
+            dist_cache[i][j]=model_1->distP(r);
+        }
+    }
+}
+
+void calc_distnce_fast(double alpha,int N)
+{
+    for (int j=0;j<N+1;j++)
+    {
+        for (int i=0;i<N;i++)
+        {
+            v3 r;
+            r.m_x=w_x0+i*(w_x1-w_x0)/N;
+            r.m_y=w_y0+j*(w_y1-w_y0)/N;
+            r.m_z=w_z0*(1.0-alpha)+w_z1*alpha;
+            dist_fast_cache[i][j]=model_1->distP_fast(r);
+            //printf("%d  %d \n",i,j);
+        }
+    }
+}
+
+
+
 void draw_distance(double alpha, int axis, int N)
 {
     for (int j=0;j<N;j++)
@@ -98,18 +146,18 @@ void draw_distance(double alpha, int axis, int N)
             r.m_y=w_y0+j*(w_y1-w_y0)/N;
             r.m_z=w_z0*(1.0-alpha)+w_z1*alpha;
             if (draw_dist==0)
-                get_color(model_1->distP(r),0,((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
+                get_color(dist_cache[i][j],0,scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
             else
-                get_color(model_1->distP_naive(r),0,((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
+                get_color(dist_fast_cache[i][j],0,scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
             glVertex3f(r.m_x,r.m_y,r.m_z);
 
             r.m_x=w_x0+(i)*(w_x1-w_x0)/N;
             r.m_y=w_y0+(j+1)*(w_y1-w_y0)/N;
             r.m_z=w_z0*(1.0-alpha)+w_z1*alpha;
             if (draw_dist==0)
-                get_color(model_1->distP(r),0,((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
+                get_color(dist_cache[i][j+1],0,scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
             else
-                get_color(model_1->distP_naive(r),0,((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
+                get_color(dist_fast_cache[i][j+1],0,scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
             glVertex3f(r.m_x,r.m_y,r.m_z);
         }
         glEnd();
@@ -119,30 +167,34 @@ void draw_distance(double alpha, int axis, int N)
 void display(void)
 {
     glEnable(GL_DEPTH_TEST);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
     glRotatef(ry,1.0,0,0);
     glRotatef(rx,0.0,1.0,0);
 
     glColor3f(1,1,1);
 
-       glBegin(GL_LINE_LOOP);
-       glVertex3f(w_x0,w_y0,w_z0);
-       glVertex3f(w_x0,w_y1,w_z0);
-       glVertex3f(w_x1,w_y1,w_z0);
-       glVertex3f(w_x1,w_y0,w_z0);
-       glEnd();
+    glBegin(GL_LINE_LOOP);
+    glVertex3f(w_x0,w_y0,w_z0);
+    glVertex3f(w_x0,w_y1,w_z0);
+    glVertex3f(w_x1,w_y1,w_z0);
+    glVertex3f(w_x1,w_y0,w_z0);
+    glEnd();
 
-       glBegin(GL_LINE_LOOP);
-       glVertex3f(w_x0,w_y0,w_z1);
-       glVertex3f(w_x0,w_y1,w_z1);
-       glVertex3f(w_x1,w_y1,w_z1);
-       glVertex3f(w_x1,w_y0,w_z1);
-       glEnd();
+    glBegin(GL_LINE_LOOP);
+    glVertex3f(w_x0,w_y0,w_z1);
+    glVertex3f(w_x0,w_y1,w_z1);
+    glVertex3f(w_x1,w_y1,w_z1);
+    glVertex3f(w_x1,w_y0,w_z1);
+    glEnd();
+
+    if (draw_model)
+    model_1->draw();
 
 
-       model_1->draw();
-       draw_distance(0.5,2,50);
+
+    draw_distance(0.5,2,N_cross);
+
     glutSwapBuffers();
     if (redr==1) glutPostRedisplay();
 }
@@ -176,7 +228,7 @@ void m_d(int button, int state,int x, int y)  //mouse down
         my0=y;
 
     }
-       double W_WIDTH=W_HEIGHT*(w_x1-w_x0)/(w_y1-w_y0);
+    double W_WIDTH=W_HEIGHT*(w_x1-w_x0)/(w_y1-w_y0);
     mouse_x=(1.0*x)/W_WIDTH;
 
     mouse_y=(W_HEIGHT-(1.0*y))/W_HEIGHT;
@@ -201,6 +253,21 @@ void kb(unsigned char key, int x, int y)
         printf("drawing distance from triangle centers \n");
     }
 
+    if (key=='.')
+    {
+        scale*=1.1;
+    }
+
+
+    if (key==',')
+    {
+        scale/=1.1;
+    }
+
+    if (key==' ')
+    {
+        draw_model=!draw_model;
+    }
     glutPostRedisplay();
 }
 
@@ -244,6 +311,16 @@ void GUI::init(int argc, char **argv)
     w_x0-=dx; w_x1+=dx;
     w_y0-=dy; w_y1+=dy;
     w_z0-=dz; w_z1+=dz;
+
+    double t0=get_time();
+    calc_distnce_fast(0.5,N_cross);
+    double t1=get_time();
+    printf("dist fast calc_time =%e \n",t1-t0);
+
+    t0=get_time();
+    calc_distnce(0.5,N_cross);
+     t1=get_time();
+    printf("dist full calc_time =%e \n",t1-t0);
 
     glutInit(&argc,argv);
     glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGB |GLUT_DEPTH);
