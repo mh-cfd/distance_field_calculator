@@ -3,6 +3,9 @@
 #include <iostream>     // std::cout
 #include <fstream>      // std::ifstream
 #include <math.h>
+
+#include "triangle_box_cross.h"
+
 #ifdef __linux__
 #include  <GL/gl.h>
 #include  <GL/glu.h>
@@ -13,7 +16,6 @@
 #include <my_include/gl.h>
 #include <my_include/glu.h>
 #include <my_include/glut.h>
-
 #endif
 
 using namespace std;
@@ -42,6 +44,16 @@ v3 multiplyMatrPoint(double **A, v3 b) {
     res.m_x = A[0][0]*b.m_x + A[0][1]*b.m_y + A[0][2]*b.m_z + A[0][3];
     res.m_y = A[1][0]*b.m_x + A[1][1]*b.m_y + A[1][2]*b.m_z + A[1][3];
     res.m_z = A[2][0]*b.m_x + A[2][1]*b.m_y + A[2][2]*b.m_z + A[2][3];
+
+    return res;
+}
+
+v3 multiplyMatrPoint3(double **A, v3 b) {
+    v3 res;
+
+    res.m_x = A[0][0]*b.m_x + A[0][1]*b.m_y + A[0][2]*b.m_z;
+    res.m_y = A[1][0]*b.m_x + A[1][1]*b.m_y + A[1][2]*b.m_z;
+    res.m_z = A[2][0]*b.m_x + A[2][1]*b.m_y + A[2][2]*b.m_z;
 
     return res;
 }
@@ -154,8 +166,6 @@ tri::tri(v3 p1, v3 p2, v3 p3)
     normal.m_z /= l;
 
     center = (p1+p2+p3)/3;
-
-    shP = new v3[3]; //shifted points
 
     matrix = new double*[4];
     for(int i=0;i<4;i++) {
@@ -279,12 +289,30 @@ tri::tri(v3 p1, v3 p2, v3 p3)
 
     for(int i=0;i<4;i++) delete[] rot_matrix[i];
     delete[] rot_matrix;
+
+    //find incident angles at vertices;
+    v3 a=m_p[1]-m_p[0];
+    v3 b=m_p[2]-m_p[0];
+    m_vert_angle[0]=acos( dotProd(a,b) / (a.len()*b.len()) );
+
+     a=m_p[0]-m_p[1];
+     b=m_p[2]-m_p[1];
+    m_vert_angle[1]=acos( dotProd(a,b) / (a.len()*b.len()) );
+
+     a=m_p[1]-m_p[2];
+     b=m_p[0]-m_p[2];
+    m_vert_angle[2]=acos( dotProd(a,b) / (a.len()*b.len()) );
+
+    if (fabs(m_vert_angle[0] + m_vert_angle[1] +m_vert_angle[2]- 3.1415926535)>1e-5 )
+        printf("WARNING triangle angles sum is %f \n",m_vert_angle[0] + m_vert_angle[1] +m_vert_angle[2]);
+
 }
 
-double tri::distP(v3 point) {
+double tri::distP(v3 &point, double &dot_out) {
+
     double dist = -1;
     v3 p = multiplyMatrPoint(this->matrix, point);
-
+    dot_out=p.m_x;//1.0;
     double E12, E23, E31; //edges equation results: E<0 -> point on left side, E>0 -> point on right side
     //E(y,z) = (y-Y)*dZ - (z-Z)*dY
 
@@ -298,12 +326,12 @@ double tri::distP(v3 point) {
     //cout << "p=" << p.m_x << "   " << p.m_y << "   " << p.m_z << endl;
     //cout << "Edges " << E12 << "   " << E23 << "   " << E31 << endl;
 
-    if(fabs(E12) < 1.e-15 || fabs(E23) < 1.e-15 || fabs(E31) < 1.e-15) {    //on the edge
-        dist = fabs(p.m_x);
-        return dist;
-    }
+   // if(fabs(E12) < 1.e-15 || fabs(E23) < 1.e-15 || fabs(E31) < 1.e-15) {    //on the edge
+   //     dist = fabs(p.m_x);
+  //      return dist;
+  //  }
 
-    if(E12>0 && E23>0 && E31>0) {   //inside
+    if(E12>-1.e-15 && E23>-1.e-15 && E31>-1e-15) {   //inside
         dist = fabs(p.m_x);
         return dist;
     }
@@ -312,6 +340,7 @@ double tri::distP(v3 point) {
     if(E12 < 0) { //left side of p1p2
         mult = dotProd(shP[1], p);
         if(mult < 0) {  //p1 is closest
+            dot_out=dot_out*m_vert_angle[0];
             return p.len();
         }
         else {
@@ -320,6 +349,7 @@ double tri::distP(v3 point) {
                 return sqrt(p.m_x*p.m_x + p.m_y*p.m_y);
             }
             else {  //p2 is closest
+                dot_out=dot_out*m_vert_angle[1];
                 return (p-shP[1]).len();
             }
         }
@@ -328,6 +358,7 @@ double tri::distP(v3 point) {
     if(E31 < 0) {  //right side p1p2, left side p3p1
         mult = dotProd(shP[2], p);
         if(mult < 0) {  //p1 is closest
+            dot_out=dot_out*m_vert_angle[0];
             return p.len();
         }
         else {
@@ -337,6 +368,7 @@ double tri::distP(v3 point) {
                 return sqrt(p.m_x*p.m_x + c2);
             }
             else {  //p3 is closest
+                dot_out=dot_out*m_vert_angle[2];
                 return (p-shP[2]).len();
             }
         }
@@ -345,6 +377,7 @@ double tri::distP(v3 point) {
     if(E23 < 0) {  //left side p2p3, right side of other
         mult = dotProd(shP[2]-shP[1], p-shP[1]);
         if(mult < 0) {  //p2 is closest
+            dot_out=dot_out*m_vert_angle[1];
             return (p-shP[1]).len();
         }
         else {
@@ -354,6 +387,7 @@ double tri::distP(v3 point) {
                 return sqrt(p.m_x*p.m_x + c2);
             }
             else {  //p3 is closest
+                dot_out=dot_out*m_vert_angle[2];
                 return (p-shP[2]).len();
             }
         }
@@ -378,7 +412,7 @@ double tri::getSign(v3 point)
 
 void tri::draw()
 {
-    glColor3f(1.0,1.0,1.0);
+    //glColor3f(1.0,1.0,1.0);
     glBegin(GL_TRIANGLES);
     glNormal3f(normal.m_x,normal.m_y,normal.m_z);
     for (int i=0;i<3;i++)
@@ -433,6 +467,7 @@ void model::load(char *fname)
             //populate each point of the triangle
             //using v3::v3(char* bin);
             //facet + 12 skips the triangle's unit normal
+            v3 n(facet);
             v3 p1(facet+12);
             v3 p2(facet+24);
             v3 p3(facet+36);
@@ -440,6 +475,7 @@ void model::load(char *fname)
             //add a new triangle to the array
             m_tris.push_back( tri(p1,p2,p3) );
 
+           // m_tris[m_tris.size()-1].normal=n;
         }
     }
 
@@ -458,7 +494,7 @@ void model::load(char *fname)
     w_z0=m_zMin;
     w_z1=m_zMax;
 
-    dx=w_x1-w_x0; dy=w_y1-w_y0; dz=w_z1-w_z0;
+    dx=0.2*(w_x1-w_x0); dy=0.2*(w_y1-w_y0); dz=0.2*(w_z1-w_z0);
 
     w_x0-=dx; w_x1+=dx;
     w_y0-=dy; w_y1+=dy;
@@ -468,6 +504,9 @@ void model::load(char *fname)
     m_nj=29;
     m_nk=29;
 
+    m_dx=(w_x1-w_x0)/m_ni;
+    m_dy=(w_y1-w_y0)/m_nj;
+    m_dz=(w_z1-w_z0)/m_nk;
     printf("start distributing \n");
 
     distributeTriangles();
@@ -479,6 +518,7 @@ void model::load(char *fname)
 
 void model::draw()
 {
+    glColor3f(0.5,0.5,0.5);
     glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
     for (int i=0; i<m_tris.size();i++)
     {
@@ -491,12 +531,30 @@ void model::draw()
 double model::distP(v3 point)
 {
     double min_dist =1e10;
+    double sum_dot=0.0;//(0,0,0);
+double delta=1e-5;
     for (int i=0; i<m_tris.size();i++)
     {
-        double l=m_tris[i].distP(point);//*m_tris[i].getSign(point);
-        if (fabs(min_dist)>fabs(l)) min_dist=l;
+        double  dot_n;
+        double l=m_tris[i].distP(point,dot_n);//*m_tris[i].getSign(point);
+      //  if (fabs(l-min_dist)<1e-7)
+        //    sum_dot+=dotProd(m_tris[i].normal,point-m_tris[i].m_p[0]);//*dot_n;
+
+        if (fabs(min_dist)>=fabs(l)-delta)
+        {
+                       if  (fabs(l-min_dist)>=delta)
+                sum_dot=dot_n;//dotProd(m_tris[i].normal,point-m_tris[i].m_p[0]);
+            else
+                sum_dot+=dot_n;//dotProd(m_tris[i].normal,point-m_tris[i].m_p[0]);
+
+                       //sum_dot=dotProd(m_tris[i].normal,point-m_tris[i].m_p[0]);
+                       min_dist=l;
+
+        }
+
     }
-    return min_dist;
+
+    return -min_dist*(2.0*(sum_dot>0.0)-1.0);
 }
 
 double model::distP_naive(v3 point)
@@ -513,14 +571,12 @@ double model::distP_naive(v3 point)
 double model::distP_fast(v3 point)
 {
     //printf("aa \n");
-    double dx=(w_x1-w_x0)/m_ni;
-    double dy=(w_y1-w_y0)/m_nj;
-    double dz=(w_z1-w_z0)/m_nk;
+
 
     int ix0,iy0,iz0;
-    ix0=(int)((point.m_x - w_x0)/dx);
-    iy0=(int)((point.m_y - w_y0)/dy);
-    iz0=(int)((point.m_z - w_z0)/dz);
+    ix0=(int)((point.m_x - w_x0)/m_dx);
+    iy0=(int)((point.m_y - w_y0)/m_dy);
+    iz0=(int)((point.m_z - w_z0)/m_dz);
 
     if (ix0<0) ix0=0;
     if (iy0<0) iy0=0;
@@ -562,7 +618,8 @@ double model::distP_fast(v3 point)
                 for (int i=0; i<m_grid[ix][iy][iz].size();i++)
                 {
                     int ind=m_grid[ix][iy][iz][i];
-                    double l=m_tris[ind].distP(point);//*m_tris[ind].getSign(point);
+                    double norm;
+                    double l=m_tris[ind].distP(point,norm);//*m_tris[ind].getSign(point);
                     if (fabs(min_dist)>fabs(l)) min_dist=l;
                 }
             }
@@ -603,9 +660,7 @@ i3 model::getNearest(int i0, int j0,int k0)
     i3m.m_i[0]=i0;
     i3m.m_i[1]=j0;
     i3m.m_i[2]=k0;
-    double dx=(w_x1-w_x0)/m_ni;
-    double dy=(w_y1-w_y0)/m_nj;
-    double dz=(w_z1-w_z0)/m_nk;
+
 
     for (int i=0;i<m_ni;i++)
     {
@@ -615,9 +670,9 @@ i3 model::getNearest(int i0, int j0,int k0)
             {
                 if (m_grid[i][j][k].size()>0)
                 {
-                    double Dx=(i-i0)*dx;
-                    double Dy=(j-j0)*dy;
-                    double Dz=(k-k0)*dz;
+                    double Dx=(i-i0)*m_dx;
+                    double Dy=(j-j0)*m_dy;
+                    double Dz=(k-k0)*m_dz;
 
                     double li=(Dx*Dx + Dy*Dy + Dz*Dz);
                     if (l2>li)
@@ -634,6 +689,30 @@ i3 model::getNearest(int i0, int j0,int k0)
     return i3m;
 }
 
+int model::is_inside(int i, int j, int k)
+{
+
+}
+
+int  model::cell_tri_overlap(int i, int j, int k,tri &trian)
+{
+    float boxcent[3], boxhalf[3],triverts[3][3];
+    boxcent[0]=w_x0+m_dx*(i+0.5);
+    boxcent[1]=w_y0+m_dy*(j+0.5);
+    boxcent[2]=w_z0+m_dz*(k+0.5);
+
+    boxhalf[0]=m_dx*0.5;
+    boxhalf[1]=m_dy*0.5;
+    boxhalf[2]=m_dz*0.5;
+    for (int i=0;i<3;i++)
+    {
+        triverts[i][0]=trian.m_p[i].m_x;
+        triverts[i][1]=trian.m_p[i].m_y;
+        triverts[i][2]=trian.m_p[i].m_z;
+    }
+    return triBoxOverlap(boxcent,boxhalf,triverts);
+}
+
 void model::distributeTriangles()
 {
     for (int i=0;i<m_ni;i++)
@@ -646,24 +725,30 @@ void model::distributeTriangles()
             }
         }
     }
-    double dx=(w_x1-w_x0)/m_ni;
-    double dy=(w_y1-w_y0)/m_nj;
-    double dz=(w_z1-w_z0)/m_nk;
+
 
     for (int i=0;i<m_tris.size();i++)
     {
-        int ix[3],iy[3],iz[3];
+                int ix[3],iy[3],iz[3],ix_min,ix_max,iy_min,iy_max,iz_min,iz_max;
         for (int nn=0; nn<3; nn++)
         {
-            ix[nn]=(int)((m_tris[i].m_p[nn].m_x - w_x0)/dx);
-            iy[nn]=(int)((m_tris[i].m_p[nn].m_y - w_y0)/dy);
-            iz[nn]=(int)((m_tris[i].m_p[nn].m_z - w_z0)/dz);
-            int s=m_grid[ix[nn]][iy[nn]][iz[nn]].size();
-            if ((s==0) || (m_grid[ix[nn]][iy[nn]][iz[nn]][s-1]!=i))
-            {
-                m_grid[ix[nn]][iy[nn]][iz[nn]].push_back(i);
-            }
+            ix[nn]=(int)((m_tris[i].m_p[nn].m_x - w_x0)/m_dx);
+            iy[nn]=(int)((m_tris[i].m_p[nn].m_y - w_y0)/m_dy);
+            iz[nn]=(int)((m_tris[i].m_p[nn].m_z - w_z0)/m_dz);
         }
+        FINDMINMAX(ix[0],ix[1],ix[2],ix_min,ix_max);
+        FINDMINMAX(iy[0],iy[1],iy[2],iy_min,iy_max);
+        FINDMINMAX(iz[0],iz[1],iz[2],iz_min,iz_max);
+
+        for(int ii=ix_min;ii<=ix_max;ii++)
+            for(int jj=iy_min;jj<=iy_max;jj++)
+                for(int kk=iz_min;kk<=iz_max;kk++)
+                {
+                    if (cell_tri_overlap(ii,jj,kk,m_tris[i]))
+                    {
+                         m_grid[ii][jj][kk].push_back(i);
+                    }
+                }
     }
 
     /* //from centers

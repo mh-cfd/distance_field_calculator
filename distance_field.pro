@@ -6,7 +6,8 @@ CONFIG -= qt
 SOURCES += \
     Main.cpp \
     display/GUI.cpp \
-    model.cpp
+    model.cpp \
+    triangle_box_cross.cpp
 
 HEADERS += \
     my_include/gl.h \
@@ -16,7 +17,8 @@ HEADERS += \
     my_include/png.h \
     my_include/pngconf.h \
     display/GUI.h \
-    model.h
+    model.h \
+    triangle_box_cross.h
 #QMAKE_CXXFLAGS += -O2
 QMAKE_CXXFLAGS_RELEASE += -O3 -ffast-math  -msse -std=c++11
 

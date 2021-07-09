@@ -1,6 +1,7 @@
 #include "GUI.h"
 #include "model.h"
 #include <sys/time.h>
+#include <math.h>
 #ifdef __linux__
 #include  <GL/gl.h>
 #include  <GL/glu.h>
@@ -45,13 +46,17 @@ double mouse_y=0.0;
 int rotate=0;
 int draw_model=1;
 extern model* model_1;
- double scale =1.0;
+double scale =1.0;
 
 int draw_dist=0;
 
-double dist_cache[200][200];
-double dist_fast_cache[200][200];
-int N_cross=150;
+double dist_cache[260][260];
+double dist_fast_cache[260][260];
+int N_cross=250;
+
+double alpha_x=0.5;
+
+double alpha_y=0.5;
 
 double get_time(void) {
     struct timeval tv;
@@ -108,8 +113,8 @@ void calc_distnce(double alpha,int N)
         {
             v3 r;
             r.m_x=w_x0+i*(w_x1-w_x0)/N;
-            r.m_y=w_y0+j*(w_y1-w_y0)/N;
-            r.m_z=w_z0*(1.0-alpha)+w_z1*alpha;
+            r.m_y=w_y0*(1.0-alpha)+w_y1*alpha;//w_y0+j*(w_y1-w_y0)/N;
+            r.m_z=w_z0+j*(w_z1-w_z0)/N;//w_z0*(1.0-alpha)+w_z1*alpha;
             dist_cache[i][j]=model_1->distP(r);
         }
     }
@@ -125,6 +130,11 @@ void calc_distnce_fast(double alpha,int N)
             r.m_x=w_x0+i*(w_x1-w_x0)/N;
             r.m_y=w_y0+j*(w_y1-w_y0)/N;
             r.m_z=w_z0*(1.0-alpha)+w_z1*alpha;
+
+            r.m_x=w_x0+i*(w_x1-w_x0)/N;
+            r.m_y=w_y0*(1.0-alpha)+w_y1*alpha;//w_y0+j*(w_y1-w_y0)/N;
+            r.m_z=w_z0+j*(w_z1-w_z0)/N;//w_z0*(1.0-alpha)+w_z1*alpha;
+
             dist_fast_cache[i][j]=model_1->distP_fast(r);
             //printf("%d  %d \n",i,j);
         }
@@ -142,20 +152,38 @@ void draw_distance(double alpha, int axis, int N)
         {
             v3 r;
 
+            //            r.m_x=w_x0+i*(w_x1-w_x0)/N;
+            //          r.m_y=w_y0+j*(w_y1-w_y0)/N;
+            //        r.m_z=w_z0*(1.0-alpha)+w_z1*alpha;
+
             r.m_x=w_x0+i*(w_x1-w_x0)/N;
-            r.m_y=w_y0+j*(w_y1-w_y0)/N;
-            r.m_z=w_z0*(1.0-alpha)+w_z1*alpha;
-            if (draw_dist==0)
-                get_color(dist_cache[i][j],0,scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
+            r.m_y=w_y0*(1.0-alpha)+w_y1*alpha;//w_y0+j*(w_y1-w_y0)/N;
+            r.m_z=w_z0+j*(w_z1-w_z0)/N;//w_z0*(1.0-alpha)+w_z1*alpha;
+
+
+            if (draw_dist==0){
+                //get_color(dist_cache[i][j],0,scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
+                double d=dist_cache[i][j]*scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0;
+                glColor3f(-d,-d,d);
+            }
             else
                 get_color(dist_fast_cache[i][j],0,scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
             glVertex3f(r.m_x,r.m_y,r.m_z);
 
-            r.m_x=w_x0+(i)*(w_x1-w_x0)/N;
-            r.m_y=w_y0+(j+1)*(w_y1-w_y0)/N;
-            r.m_z=w_z0*(1.0-alpha)+w_z1*alpha;
-            if (draw_dist==0)
-                get_color(dist_cache[i][j+1],0,scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
+            //            r.m_x=w_x0+(i)*(w_x1-w_x0)/N;
+            //          r.m_y=w_y0+(j+1)*(w_y1-w_y0)/N;
+            //        r.m_z=w_z0*(1.0-alpha)+w_z1*alpha;
+
+            r.m_x=w_x0+i*(w_x1-w_x0)/N;
+            r.m_y=w_y0*(1.0-alpha)+w_y1*alpha;//w_y0+j*(w_y1-w_y0)/N;
+            r.m_z=w_z0+(j+1)*(w_z1-w_z0)/N;//w_z0*(1.0-alpha)+w_z1*alpha;
+
+
+            if (draw_dist==0){
+                //get_color(dist_cache[i][j+1],0,scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
+                double d=dist_cache[i][j]*scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0;
+                glColor3f(-d,-d,d);
+            }
             else
                 get_color(dist_fast_cache[i][j+1],0,scale*((w_x1-w_x0)+(w_y1-w_y0)+(w_z1-w_z0))/6.0);
             glVertex3f(r.m_x,r.m_y,r.m_z);
@@ -189,10 +217,62 @@ void display(void)
     glEnd();
 
     if (draw_model)
-    model_1->draw();
+        model_1->draw();
 
+    glPointSize(5.0);
+    glBegin(GL_POINTS);
+    glColor3f(0,1,0);
+    double alpha =0.5;
+    double x=w_x0*(1.0-alpha_x)+w_x1*alpha_x;
+    double y=w_y0*(1.0-alpha)  +w_y1*alpha;//w_y0+j*(w_y1-w_y0)/N;
+    double z=w_z0*(1.0-alpha_y)+w_z1*alpha_y;//w_z0*(1.0-alpha)+w_z1*alpha;
+    glVertex3f(x,y,z);
+    glEnd();
 
+    v3 point;
+    point.m_x=x;
+    point.m_y=y;
+    point.m_z=z;
 
+    double min_dist =1e10;
+    double sum_dot=0.0;//(0,0,0);
+double delta=1e-5;
+int min_ind=0;
+for (int i=0; i<model_1->m_tris.size();i++)
+{
+    double dot_n;
+    double l=model_1->m_tris[i].distP(point,dot_n);//*m_tris[i].getSign(point);
+    if (fabs(min_dist)>=fabs(l))
+    {
+                   min_dist=l;
+                   min_ind=i;
+    }
+}
+glColor3f(1,0,0);
+ model_1->m_tris[min_ind].draw();
+
+/*
+    for (int i=0; i<model_1->m_tris.size();i++)
+    {
+        double  dot_n;
+        double l=m_tris[i].distP(point,dot_n);//*m_tris[i].getSign(point);
+      //  if (fabs(l-min_dist)<1e-7)
+        //    sum_dot+=dotProd(m_tris[i].normal,point-m_tris[i].m_p[0]);//*dot_n;
+
+        if (fabs(min_dist)>=fabs(l)-delta)
+        {
+                       if  (fabs(l-min_dist)>=delta)
+                sum_dot=dot_n;//dotProd(m_tris[i].normal,point-m_tris[i].m_p[0]);
+            else
+                sum_dot+=dot_n;//dotProd(m_tris[i].normal,point-m_tris[i].m_p[0]);
+
+                       //sum_dot=dotProd(m_tris[i].normal,point-m_tris[i].m_p[0]);
+                       min_dist=l;
+
+        }
+
+    }
+  */
     draw_distance(0.5,2,N_cross);
 
     glutSwapBuffers();
@@ -268,6 +348,26 @@ void kb(unsigned char key, int x, int y)
     {
         draw_model=!draw_model;
     }
+
+    if (key=='w')
+    {
+        alpha_y=fmin(alpha_y+0.001,1.0);
+    }
+    if (key=='s')
+    {
+        alpha_y=fmax(alpha_y-0.001,0.0);
+    }
+
+    if (key=='a')
+    {
+        alpha_x=fmin(alpha_x+0.001,1.0);
+    }
+    if (key=='d')
+    {
+        alpha_x=fmax(alpha_x-0.001,0.0);
+    }
+
+
     glutPostRedisplay();
 }
 
@@ -299,18 +399,12 @@ GUI::GUI()
 void GUI::init(int argc, char **argv)
 {
     double dx,dy,dz;
-    w_x0=model_1->m_xMin;
-    w_x1=model_1->m_xMax;
-    w_y0=model_1->m_yMin;
-    w_y1=model_1->m_yMax;
-    w_z0=model_1->m_zMin;
-    w_z1=model_1->m_zMax;
-
-    dx=w_x1-w_x0; dy=w_y1-w_y0; dz=w_z1-w_z0;
-
-    w_x0-=dx; w_x1+=dx;
-    w_y0-=dy; w_y1+=dy;
-    w_z0-=dz; w_z1+=dz;
+    w_x0=model_1->w_x0;
+    w_x1=model_1->w_x1;
+    w_y0=model_1->w_y0;
+    w_y1=model_1->w_y1;
+    w_z0=model_1->w_z0;
+    w_z1=model_1->w_z1;
 
     double t0=get_time();
     calc_distnce_fast(0.5,N_cross);
@@ -319,7 +413,7 @@ void GUI::init(int argc, char **argv)
 
     t0=get_time();
     calc_distnce(0.5,N_cross);
-     t1=get_time();
+    t1=get_time();
     printf("dist full calc_time =%e \n",t1-t0);
 
     glutInit(&argc,argv);

@@ -18,7 +18,8 @@ int main(int argc, char** argv)
     sprintf(dir,"%s",__FILE__);
     dir[strlen(dir)-9]=0; //hack to get source directory
 
-    sprintf(file_mod,"%s/stl_files/teapot.stl",dir);
+    sprintf(file_mod,"%s/stl_files/dodeca_half_a.stl",dir);
+   // sprintf(file_mod,"%s/stl_files/teapot.stl",dir);
     printf("hello world %s \n", file_mod);
 
     model_1= new model();
